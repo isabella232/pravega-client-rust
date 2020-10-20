@@ -28,7 +28,7 @@ use crate::transaction::transactional_event_stream_writer::TransactionalEventStr
 use pravega_rust_client_auth::DelegationTokenProvider;
 use std::fmt;
 use std::sync::Arc;
-use tokio::runtime::{Handle, Runtime};
+use tokio::runtime::Runtime;
 
 #[derive(Clone)]
 pub struct ClientFactory(Arc<ClientFactoryInternal>);
@@ -48,8 +48,7 @@ impl ClientFactory {
         let controller = if config.mock {
             Box::new(MockController::new(config.controller_uri.clone())) as Box<dyn ControllerClient>
         } else {
-            Box::new(ControllerClientImpl::new(config.clone(), rt.handle().clone()))
-                as Box<dyn ControllerClient>
+            Box::new(ControllerClientImpl::new(config.clone(), &rt)) as Box<dyn ControllerClient>
         };
         ClientFactory(Arc::new(ClientFactoryInternal {
             connection_pool: pool,
@@ -60,10 +59,10 @@ impl ClientFactory {
     }
 
     ///
-    /// Get the Runtime handle.
+    /// Get the Runtime.
     ///
-    pub fn get_runtime_handle(&self) -> Handle {
-        self.0.get_runtime_handle()
+    pub fn get_runtime(&self) -> &Runtime {
+        self.0.get_runtime()
     }
 
     pub async fn create_async_event_reader(&self, segment: ScopedSegment) -> AsyncSegmentReaderImpl {
@@ -122,7 +121,7 @@ impl ClientFactory {
     }
 
     pub fn create_byte_stream_reader(&self, segment: ScopedSegment) -> ByteStreamReader {
-        ByteStreamReader::new(segment, self)
+        ByteStreamReader::new(segment, self.clone())
     }
 
     pub async fn create_delegation_token_provider(&self, stream: ScopedStream) -> DelegationTokenProvider {
@@ -166,10 +165,10 @@ impl ClientFactoryInternal {
     }
 
     ///
-    /// Get the Runtime handle. The Handle is internally reference counted and can be cloned.
+    /// Get the Runtime. The Runtime is internally reference counted and can be cloned.
     ///
-    pub(crate) fn get_runtime_handle(&self) -> Handle {
-        self.runtime.handle().clone()
+    pub(crate) fn get_runtime(&self) -> &Runtime {
+        &self.runtime
     }
 }
 

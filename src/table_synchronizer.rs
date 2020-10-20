@@ -25,7 +25,7 @@ use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
 use std::slice::Iter;
 use std::time::Duration;
-use tokio::time::delay_for;
+use tokio::time;
 use tracing::debug;
 
 /// Provides a map that is synchronized across different processes.
@@ -708,7 +708,8 @@ async fn conditionally_write(
                 debug!("Error message is {}", e);
                 if retry > 0 {
                     retry -= 1;
-                    delay_for(Duration::from_millis(DELAY_MILLIS)).await;
+                    let mut interval = time::interval(Duration::from_millis(DELAY_MILLIS));
+                    interval.tick().await;
                 } else {
                     return Err(SynchronizerError::SyncTableError {
                         operation: "insert conditionally_all".to_owned(),
@@ -778,7 +779,8 @@ async fn conditionally_remove(
                 debug!("Error message is {}", e);
                 if retry > 0 {
                     retry -= 1;
-                    delay_for(Duration::from_millis(DELAY_MILLIS)).await;
+                    let mut interval = time::interval(Duration::from_millis(DELAY_MILLIS));
+                    interval.tick().await;
                 } else {
                     return Err(SynchronizerError::SyncTableError {
                         operation: "remove conditionally_all".to_owned(),

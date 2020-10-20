@@ -26,7 +26,7 @@ use pravega_wire_protocol::wire_commands::{Replies, Requests};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time;
-use tokio::runtime::{Handle, Runtime};
+use tokio::runtime::Runtime;
 use tokio::time::timeout;
 use uuid::Uuid;
 
@@ -49,8 +49,8 @@ pub fn wirecommand_test_wrapper() {
         .build()
         .expect("build client config");
     let cf = ClientFactory::new(config);
-    let h = cf.get_runtime_handle();
-    h.block_on(wirecommand_tests(cf.get_controller_client()));
+    let runtime = cf.get_runtime();
+    runtime.block_on(wirecommand_tests(cf.get_controller_client()));
 }
 
 pub async fn wirecommand_tests(controller: &dyn ControllerClient) {

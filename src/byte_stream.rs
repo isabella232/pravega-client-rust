@@ -19,7 +19,6 @@ use pravega_rust_client_shared::{ScopedSegment, WriterId};
 use std::cmp;
 use std::io::Error;
 use std::io::{ErrorKind, Read, Seek, SeekFrom, Write};
-use tokio::runtime::Handle;
 use tokio::sync::mpsc::{channel, Sender};
 use tokio::sync::oneshot;
 use tokio::sync::oneshot::error::TryRecvError;
@@ -33,13 +32,13 @@ const CHANNEL_CAPACITY: usize = 100;
 pub struct ByteStreamWriter {
     writer_id: WriterId,
     sender: Sender<Incoming>,
-    runtime_handle: Handle,
+    factory: ClientFactory,
     oneshot_receiver: Option<oneshot::Receiver<Result<(), SegmentWriterError>>>,
 }
 
 impl Write for ByteStreamWriter {
     fn write(&mut self, buf: &[u8]) -> Result<usize, Error> {
-        let oneshot_receiver = self.runtime_handle.block_on(async {
+        let oneshot_receiver = self.factory.get_runtime().block_on(async {
             let mut position = 0;
             let mut oneshot_receiver = loop {
                 let advance = std::cmp::min(buf.len() - position, PendingEvent::MAX_WRITE_SIZE);
@@ -75,7 +74,8 @@ impl Write for ByteStreamWriter {
         let oneshot_receiver = self.oneshot_receiver.take().expect("get oneshot receiver");
 
         let result = self
-            .runtime_handle
+            .factory
+            .get_runtime()
             .block_on(oneshot_receiver)
             .map_err(|e| Error::new(ErrorKind::Other, format!("oneshot error {:?}", e)))?;
 
@@ -90,32 +90,34 @@ impl Write for ByteStreamWriter {
 impl ByteStreamWriter {
     pub(crate) fn new(segment: ScopedSegment, config: ClientConfig, factory: ClientFactory) -> Self {
         let (sender, receiver) = channel(CHANNEL_CAPACITY);
-        let handle = factory.get_runtime_handle();
+        let runtime = factory.get_runtime();
         let writer_id = WriterId(get_random_u128());
         let span = info_span!("StreamReactor", event_stream_writer = %writer_id);
         // tokio::spawn is tied to the factory runtime.
-        handle.enter(|| {
-            tokio::spawn(
-                SegmentReactor::run(segment, sender.clone(), receiver, factory.clone(), config)
-                    .instrument(span),
-            )
+        let _guard = runtime.enter();
+        let sender_clone = sender.clone();
+        let factory_clone = factory.clone();
+        tokio::spawn(async move {
+            SegmentReactor::run(segment, sender_clone, receiver, factory_clone, config)
+                .instrument(span)
+                .await;
         });
         ByteStreamWriter {
             writer_id,
             sender,
-            runtime_handle: handle,
+            factory,
             oneshot_receiver: None,
         }
     }
 
     async fn write_internal(
-        mut sender: Sender<Incoming>,
+        sender: Sender<Incoming>,
         event: Vec<u8>,
     ) -> oneshot::Receiver<Result<(), SegmentWriterError>> {
         let (tx, rx) = oneshot::channel();
         if let Some(pending_event) = PendingEvent::without_header(None, event, tx) {
             let append_event = Incoming::AppendEvent(pending_event);
-            if let Err(_e) = sender.send(append_event).await {
+            if let Err(_e) = sender.blocking_send(append_event) {
                 let (tx_error, rx_error) = oneshot::channel();
                 tx_error
                     .send(Err(SegmentWriterError::SendToProcessor {}))
@@ -131,13 +133,14 @@ pub struct ByteStreamReader {
     reader_id: Uuid,
     reader: AsyncSegmentReaderImpl,
     offset: i64,
-    runtime_handle: Handle,
+    factory: ClientFactory,
 }
 
 impl Read for ByteStreamReader {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, Error> {
         let result = self
-            .runtime_handle
+            .factory
+            .get_runtime()
             .block_on(self.reader.read(self.offset, buf.len() as i32));
         match result {
             Ok(cmd) => {
@@ -157,14 +160,14 @@ impl Read for ByteStreamReader {
 }
 
 impl ByteStreamReader {
-    pub(crate) fn new(segment: ScopedSegment, factory: &ClientFactory) -> Self {
-        let handle = factory.get_runtime_handle();
-        let async_reader = handle.block_on(factory.create_async_event_reader(segment));
+    pub(crate) fn new(segment: ScopedSegment, factory: ClientFactory) -> Self {
+        let runtime = factory.get_runtime();
+        let async_reader = runtime.block_on(factory.create_async_event_reader(segment));
         ByteStreamReader {
             reader_id: Uuid::new_v4(),
             reader: async_reader,
             offset: 0,
-            runtime_handle: handle,
+            factory,
         }
     }
 }

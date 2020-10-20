@@ -26,9 +26,9 @@ pub fn test_event_stream_reader(config: PravegaStandaloneServiceConfig) {
         .build()
         .expect("creating config");
     let client_factory = ClientFactory::new(config);
-    let handle = client_factory.get_runtime_handle();
-    handle.block_on(test_read_api(&client_factory));
-    handle.block_on(test_stream_scaling(&client_factory))
+    let runtime = client_factory.get_runtime();
+    runtime.block_on(test_read_api(&client_factory));
+    runtime.block_on(test_stream_scaling(&client_factory))
 }
 
 async fn test_stream_scaling(client_factory: &ClientFactory) {

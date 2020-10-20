@@ -39,8 +39,8 @@ pub fn test_event_stream_writer(config: PravegaStandaloneServiceConfig) {
         .build()
         .expect("creating config");
     let client_factory = ClientFactory::new(config);
-    let handle = client_factory.get_runtime_handle();
-    handle.block_on(utils::create_scope_stream(
+    let runtime = client_factory.get_runtime();
+    runtime.block_on(utils::create_scope_stream(
         client_factory.get_controller_client(),
         &scope_name,
         &stream_name,
@@ -53,15 +53,15 @@ pub fn test_event_stream_writer(config: PravegaStandaloneServiceConfig) {
     };
     let mut writer = client_factory.create_event_stream_writer(scoped_stream);
 
-    handle.block_on(test_simple_write(&mut writer));
+    runtime.block_on(test_simple_write(&mut writer));
 
-    handle.block_on(test_segment_scaling_up(&mut writer, &client_factory));
+    runtime.block_on(test_segment_scaling_up(&mut writer, &client_factory));
 
-    handle.block_on(test_segment_scaling_down(&mut writer, &client_factory));
+    runtime.block_on(test_segment_scaling_down(&mut writer, &client_factory));
 
     let scope_name = Scope::from("testScopeWriter2".to_owned());
     let stream_name = Stream::from("testStreamWriter2".to_owned());
-    handle.block_on(utils::create_scope_stream(
+    runtime.block_on(utils::create_scope_stream(
         client_factory.get_controller_client(),
         &scope_name,
         &stream_name,
@@ -73,12 +73,12 @@ pub fn test_event_stream_writer(config: PravegaStandaloneServiceConfig) {
     };
     let mut writer = client_factory.create_event_stream_writer(scoped_stream);
 
-    handle.block_on(test_write_correctness(&mut writer, &client_factory));
-    handle.block_on(test_write_correctness_while_scaling(&mut writer, &client_factory));
+    runtime.block_on(test_write_correctness(&mut writer, &client_factory));
+    runtime.block_on(test_write_correctness_while_scaling(&mut writer, &client_factory));
 
     let scope_name = Scope::from("testScopeWriter3".to_owned());
     let stream_name = Stream::from("testStreamWriter3".to_owned());
-    handle.block_on(utils::create_scope_stream(
+    runtime.block_on(utils::create_scope_stream(
         client_factory.get_controller_client(),
         &scope_name,
         &stream_name,
@@ -89,7 +89,7 @@ pub fn test_event_stream_writer(config: PravegaStandaloneServiceConfig) {
         stream: stream_name,
     };
     let mut writer = client_factory.create_event_stream_writer(scoped_stream);
-    handle.block_on(test_write_correctness_with_routing_key(
+    runtime.block_on(test_write_correctness_with_routing_key(
         &mut writer,
         &client_factory,
     ));

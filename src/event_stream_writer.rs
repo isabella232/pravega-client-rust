@@ -33,13 +33,12 @@ impl EventStreamWriter {
 
     pub(crate) fn new(stream: ScopedStream, config: ClientConfig, factory: ClientFactory) -> Self {
         let (tx, rx) = channel(EventStreamWriter::CHANNEL_CAPACITY);
-        let handle = factory.get_runtime_handle();
+        let runtime = factory.get_runtime();
         let writer_id = WriterId::from(get_random_u128());
         let span = info_span!("StreamReactor", event_stream_writer = %writer_id);
         // tokio::spawn is tied to the factory runtime.
-        handle.enter(|| {
-            tokio::spawn(StreamReactor::run(stream, tx.clone(), rx, factory.clone(), config).instrument(span))
-        });
+        let _guard = runtime.enter();
+        tokio::spawn(StreamReactor::run(stream, tx.clone(), rx, factory.clone(), config).instrument(span));
         EventStreamWriter {
             writer_id,
             sender: tx,
@@ -112,7 +111,7 @@ mod tests {
         let event = PendingEvent::without_header(routing_key, data, tx);
         assert!(event.is_none());
 
-        let mut rt = Runtime::new().expect("get runtime");
+        let rt = Runtime::new().expect("get runtime");
         let reply = rt.block_on(rx).expect("get reply");
         assert!(reply.is_err());
     }

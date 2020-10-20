@@ -15,7 +15,7 @@ use std::collections::HashSet;
 use std::time::Duration;
 use tokio::sync::mpsc::error::TryRecvError;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
-use tokio::time::delay_for;
+use tokio::time;
 use tracing::{debug, error, info};
 
 #[derive(Debug)]
@@ -155,7 +155,8 @@ impl Pinger {
             info!("sending transaction pings complete.");
 
             // delay for transaction lease milliseconds.
-            delay_for(Duration::from_millis(self.txn_lease_millis)).await;
+            let mut interval = time::interval(Duration::from_millis(self.txn_lease_millis));
+            interval.tick().await;
         }
     }
 

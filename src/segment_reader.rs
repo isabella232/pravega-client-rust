@@ -348,7 +348,7 @@ mod tests {
 
     use mockall::predicate::*;
     use mockall::*;
-    use tokio::time::delay_for;
+    use tokio::time;
 
     use pravega_rust_client_shared::*;
     use pravega_wire_protocol::client_connection::ClientConnection;
@@ -371,7 +371,8 @@ mod tests {
     #[async_trait]
     impl RawClient<'static> for MockRawClientImpl {
         async fn send_request(&self, request: &Requests) -> Result<Replies, RawClientError> {
-            delay_for(Duration::from_nanos(1)).await;
+            let mut interval = time::interval(Duration::from_millis(1));
+            interval.tick().await;
             self.send_request(request)
         }
 
@@ -392,7 +393,7 @@ mod tests {
             .build()
             .expect("creating config");
         let factory = ClientFactory::new(config);
-        let runtime = factory.get_runtime_handle();
+        let runtime = factory.get_runtime();
 
         let scope_name = Scope::from("examples".to_owned());
         let stream_name = Stream::from("someStream".to_owned());

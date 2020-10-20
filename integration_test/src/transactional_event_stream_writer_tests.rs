@@ -31,8 +31,8 @@ use pravega_wire_protocol::commands::{
 };
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::runtime::Handle;
-use tokio::time::delay_for;
+use tokio::runtime::Runtime;
+use tokio::time;
 
 pub fn test_transactional_event_stream_writer(config: PravegaStandaloneServiceConfig) {
     info!("test TransactionalEventStreamWriter");
@@ -50,19 +50,19 @@ pub fn test_transactional_event_stream_writer(config: PravegaStandaloneServiceCo
         .build()
         .expect("creating config");
     let client_factory = ClientFactory::new(config);
-    let handle = client_factory.get_runtime_handle();
-    handle.block_on(setup_test(
+    let runtime = client_factory.get_runtime();
+    runtime.block_on(setup_test(
         &scope_name,
         &stream_name,
         client_factory.get_controller_client(),
     ));
 
     let mut writer =
-        handle.block_on(client_factory.create_transactional_event_stream_writer(scoped_stream, WriterId(0)));
+        runtime.block_on(client_factory.create_transactional_event_stream_writer(scoped_stream, WriterId(0)));
 
-    handle.block_on(test_commit_transaction(&mut writer));
-    handle.block_on(test_abort_transaction(&mut writer));
-    handle.block_on(test_write_and_read_transaction(&mut writer, &client_factory));
+    runtime.block_on(test_commit_transaction(&mut writer));
+    runtime.block_on(test_abort_transaction(&mut writer));
+    runtime.block_on(test_write_and_read_transaction(&mut writer, &client_factory));
 
     info!("test TransactionalEventStreamWriter passed");
 }
@@ -242,7 +242,8 @@ async fn wait_for_transaction_with_timeout(
         if expected_status == transaction.check_status().await.expect("get transaction status") {
             return;
         }
-        delay_for(Duration::from_secs(1)).await;
+        let mut interval = time::interval(Duration::from_millis(1000));
+        interval.tick().await;
     }
     panic!(
         "timeout {:?} exceeded, Transaction is not {:?}",

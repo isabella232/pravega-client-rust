@@ -18,6 +18,6 @@ pravega-rust-client-shared = { path = "../shared"}
 async-trait = "0.1.36"
 uuid = {version = "0.8", features = ["v4"]}
 snafu = "0.6.2"
-tokio = { version = "0.2.16", features = ["full"] }
+tokio = { version = "0.3.0", features = ["full"] }
 futures = "0.3.5"
 dashmap = "3.4.4"

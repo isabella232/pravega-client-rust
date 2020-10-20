@@ -17,7 +17,6 @@ authors = ["Tom Kaitchuck <Tom.Kaitchuck@dell.com>", "Wenqi Mou <wenqi.mou@dell.
 members = [
     "controller-client", "shared", "wire_protocol", "retry", "integration_test", "connection_pool", "channel", "bindings", "auth", "config"
 ]
-default-members = ["controller-client", "shared", "wire_protocol", "retry", "integration_test", "connection_pool", "channel", "auth", "config"]
 
 [dependencies]
 pravega-rust-client-shared = { path = "./shared"}
@@ -31,7 +30,7 @@ pravega-rust-client-config = {path = "./config"}
 async-trait = "0.1.36"
 futures = "0.3.5"
 snafu = "0.6.2"
-tokio = { version = "0.2.16", features = ["full"] }
+tokio = { version = "0.3.0", features = ["full"] }
 tracing = "0.1.17"
 tracing-futures = "0.2.4"
 tracing-subscriber = "0.2.2"
@@ -48,7 +47,7 @@ serde_cbor = "0.11.1"
 pcg_rand = "0.11.1"
 bytes = "0.5"
 im = "14.3.0"
-tokio-util = "0.3.1"
+tokio-util = "0.4.0"
 metrics = "0.13.0-alpha.3"
 metrics-exporter-prometheus = "0.1.0-alpha.3"
 enum-iterator = "0.6.0"

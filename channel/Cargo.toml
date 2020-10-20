@@ -15,4 +15,4 @@ authors = ["Tom Kaitchuck <Tom.Kaitchuck@dell.com>", "Wenqi Mou <wenqi.mou@dell.
 
 [dependencies]
 futures-intrusive = "0.3.0"
-tokio = { version = "0.2.16", features = ["full"] }
+tokio = { version = "0.3.0", features = ["full"] }

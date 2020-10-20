@@ -165,7 +165,7 @@ impl SegmentWriter {
             self.connection = Some(w);
 
             let segment = self.segment.clone();
-            let mut sender = self.sender.clone();
+            let sender = self.sender.clone();
 
             // spins up a connection listener that keeps listening on the connection
             let listener_span = info_span!("connection listener", connection = %connection_id);

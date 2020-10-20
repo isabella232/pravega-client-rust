@@ -28,9 +28,9 @@ pub fn test_controller_apis(config: PravegaStandaloneServiceConfig) {
     let controller = client_factory.get_controller_client();
     let scope_name = Scope::from("testScope123".to_owned());
     let stream_name = Stream::from("testStream".to_owned());
-    let handle = client_factory.get_runtime_handle();
+    let runtime = client_factory.get_runtime();
 
-    let scope_result = handle.block_on(controller.create_scope(&scope_name));
+    let scope_result = runtime.block_on(controller.create_scope(&scope_name));
     info!("Response for create_scope is {:?}", scope_result);
 
     let stream_cfg = StreamConfiguration {
@@ -50,10 +50,10 @@ pub fn test_controller_apis(config: PravegaStandaloneServiceConfig) {
         },
     };
 
-    let stream_result = handle.block_on(controller.create_stream(&stream_cfg));
+    let stream_result = runtime.block_on(controller.create_stream(&stream_cfg));
     info!("Response for create_stream is {:?}", stream_result);
 
-    handle.block_on(test_scale_stream(controller));
+    runtime.block_on(test_scale_stream(controller));
 }
 
 pub async fn test_scale_stream(controller: &dyn ControllerClient) {

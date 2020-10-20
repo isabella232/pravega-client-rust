@@ -483,6 +483,7 @@ impl Command for PartialEventCommand {
  */
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct EventCommand {
+    #[serde(with = "serde_bytes")]
     pub data: Vec<u8>,
 }
 
@@ -548,6 +549,7 @@ impl Request for SetupAppendCommand {
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct AppendBlockCommand {
     pub writer_id: u128,
+    #[serde(with = "serde_bytes")]
     pub data: Vec<u8>,
 }
 
@@ -577,6 +579,7 @@ impl Command for AppendBlockCommand {
 pub struct AppendBlockEndCommand {
     pub writer_id: u128,
     pub size_of_whole_events: i32,
+    #[serde(with = "serde_bytes")]
     pub data: Vec<u8>,
     pub num_event: i32,
     pub last_event_number: i64,
@@ -816,6 +819,7 @@ pub struct SegmentReadCommand {
     pub offset: i64,
     pub at_tail: bool,
     pub end_of_segment: bool,
+    #[serde(with = "serde_bytes")]
     pub data: Vec<u8>,
     pub request_id: i64,
 }

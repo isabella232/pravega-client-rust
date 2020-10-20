@@ -41,8 +41,8 @@ pub fn test_byte_stream(config: PravegaStandaloneServiceConfig) {
         .build()
         .expect("creating config");
     let client_factory = ClientFactory::new(config);
-    let handle = client_factory.get_runtime_handle();
-    handle.block_on(utils::create_scope_stream(
+    let runtime = client_factory.get_runtime();
+    runtime.block_on(utils::create_scope_stream(
         client_factory.get_controller_client(),
         &scope_name,
         &stream_name,

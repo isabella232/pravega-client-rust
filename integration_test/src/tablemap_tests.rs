@@ -31,11 +31,11 @@ pub fn test_tablemap(config: PravegaStandaloneServiceConfig) {
         .expect("creating config");
 
     let client_factory = ClientFactory::new(config);
-    let handle = client_factory.get_runtime_handle();
-    handle.block_on(test_single_key_operations(&client_factory));
-    handle.block_on(test_multiple_key_operations(&client_factory));
-    handle.block_on(test_multiple_key_remove_operations(&client_factory));
-    handle.block_on(test_iterators(&client_factory));
+    let runtime = client_factory.get_runtime();
+    runtime.block_on(test_single_key_operations(&client_factory));
+    runtime.block_on(test_multiple_key_operations(&client_factory));
+    runtime.block_on(test_multiple_key_remove_operations(&client_factory));
+    runtime.block_on(test_iterators(&client_factory));
 }
 
 async fn test_single_key_operations(client_factory: &ClientFactory) {

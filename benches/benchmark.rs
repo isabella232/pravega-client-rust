@@ -11,24 +11,25 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 
 use byteorder::BigEndian;
-use log::info;
+use pravega_client_rust::byte_stream::ByteStreamWriter;
 use pravega_client_rust::client_factory::ClientFactory;
 use pravega_client_rust::error::SegmentWriterError;
 use pravega_client_rust::event_stream_writer::EventStreamWriter;
 use pravega_controller_client::ControllerClient;
+use pravega_rust_client_config::connection_type::ConnectionType;
+use pravega_rust_client_config::{ClientConfig, ClientConfigBuilder};
 use pravega_rust_client_shared::*;
-use pravega_wire_protocol::client_config::{ClientConfig, ClientConfigBuilder};
 use pravega_wire_protocol::client_connection::{LENGTH_FIELD_LENGTH, LENGTH_FIELD_OFFSET};
 use pravega_wire_protocol::commands::{AppendSetupCommand, DataAppendedCommand};
-use pravega_wire_protocol::connection_factory::ConnectionType;
 use pravega_wire_protocol::wire_commands::{Decode, Encode, Replies, Requests};
-use std::io::Cursor;
+use std::io::{Cursor, Write};
 use std::net::SocketAddr;
 use tokio::io::AsyncReadExt;
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpListener;
+use tracing::info;
 
-static EVENT_NUM: usize = 10000;
+static EVENT_NUM: usize = 1000000;
 static EVENT_SIZE: usize = 100;
 
 struct MockServer {
@@ -192,10 +193,96 @@ fn mock_connection_no_block(c: &mut Criterion) {
     info!("mock server connection(no block) testing finished");
 }
 
+// This benchmark test uses a mock server that replies ok to any requests instantly. It involves
+// kernel latency.
+fn byte_stream_mock_server(c: &mut Criterion) {
+    let mut rt = tokio::runtime::Runtime::new().unwrap();
+    let mock_server = rt.block_on(MockServer::new());
+    let config = ClientConfigBuilder::default()
+        .controller_uri(mock_server.address)
+        .mock(true)
+        .build()
+        .expect("creating config");
+    let mut writer = rt.block_on(set_up_byte_stream(config));
+    rt.spawn(async { MockServer::run(mock_server).await });
+
+    info!("start mock server performance testing");
+    c.bench_function("mock server", |b| {
+        b.iter(|| {
+            run_byte_stream(&mut writer);
+        });
+    });
+    info!("mock server performance testing finished");
+}
+
+// This benchmark test uses a mock server that replies ok to any requests instantly. It involves
+// kernel latency. It does not wait for reply.
+fn byte_stream_mock_server_no_block(c: &mut Criterion) {
+    let mut rt = tokio::runtime::Runtime::new().unwrap();
+    let mock_server = rt.block_on(MockServer::new());
+    let config = ClientConfigBuilder::default()
+        .controller_uri(mock_server.address)
+        .mock(true)
+        .build()
+        .expect("creating config");
+    let mut writer = rt.block_on(set_up_byte_stream(config));
+    rt.spawn(async { MockServer::run(mock_server).await });
+
+    info!("start mock server(no block) performance testing");
+    c.bench_function("mock server(no block)", |b| {
+        b.iter(|| {
+            run_byte_stream_no_block(&mut writer);
+        });
+    });
+    info!("mock server(no block) performance testing finished");
+}
+
+// This benchmark test uses a mock connection that replies ok to any requests instantly. It does not
+// involve kernel latency.
+fn byte_stream_mock_connection(c: &mut Criterion) {
+    let mut rt = tokio::runtime::Runtime::new().unwrap();
+    let config = ClientConfigBuilder::default()
+        .controller_uri("127.0.0.1:9090".parse::<SocketAddr>().unwrap())
+        .mock(true)
+        .connection_type(ConnectionType::Mock)
+        .build()
+        .expect("creating config");
+    let mut writer = rt.block_on(set_up_byte_stream(config));
+
+    info!("start mock connection performance testing");
+    c.bench_function("mock connection", |b| {
+        b.iter(|| {
+            run_byte_stream(&mut writer);
+        });
+    });
+    info!("mock server connection testing finished");
+}
+
+// This benchmark test uses a mock connection that replies ok to any requests instantly. It does not
+// involve kernel latency. It does not wait for reply.
+fn byte_stream_mock_connection_no_block(c: &mut Criterion) {
+    let mut rt = tokio::runtime::Runtime::new().unwrap();
+    let config = ClientConfigBuilder::default()
+        .controller_uri("127.0.0.1:9090".parse::<SocketAddr>().unwrap())
+        .mock(true)
+        .connection_type(ConnectionType::Mock)
+        .build()
+        .expect("creating config");
+    let mut writer = rt.block_on(set_up_byte_stream(config));
+
+    info!("start mock connection(no block) performance testing");
+    c.bench_function("mock connection(no block)", |b| {
+        b.iter(|| {
+            run_byte_stream_no_block(&mut writer);
+        });
+    });
+    info!("mock server connection(no block) testing finished");
+}
+
 // helper functions
 async fn set_up(config: ClientConfig) -> EventStreamWriter {
-    let scope_name = Scope::new("testWriterPerf".into());
-    let stream_name = Stream::new("testWriterPerf".into());
+    let scope_name = Scope::from("testWriterPerf".to_string());
+    let stream_name = Stream::from("testWriterPerf".to_string());
     let client_factory = ClientFactory::new(config.clone());
     let controller_client = client_factory.get_controller_client();
     create_scope_stream(controller_client, &scope_name, &stream_name, 1).await;
@@ -204,6 +291,23 @@ async fn set_up(config: ClientConfig) -> EventStreamWriter {
         stream: stream_name.clone(),
     };
     client_factory.create_event_stream_writer(scoped_stream)
+}
+
+async fn set_up_byte_stream(config: ClientConfig) -> ByteStreamWriter {
+    let scope_name = Scope::from("testWriterPerf".to_string());
+    let stream_name = Stream::from("testWriterPerf".to_string());
+    let client_factory = ClientFactory::new(config.clone());
+    let controller_client = client_factory.get_controller_client();
+    create_scope_stream(controller_client, &scope_name, &stream_name, 1).await;
+    let scoped_segment = ScopedSegment {
+        scope: scope_name.clone(),
+        stream: stream_name.clone(),
+        segment: Segment {
+            number: 0,
+            tx_id: None,
+        },
+    };
+    client_factory.create_byte_stream_writer(scoped_segment)
 }
 
 async fn create_scope_stream(
@@ -265,10 +369,26 @@ async fn run_no_block(writer: &mut EventStreamWriter) {
     assert_eq!(receivers.len(), EVENT_NUM);
 }
 
+// run sends request to server and wait for the reply
+fn run_byte_stream(writer: &mut ByteStreamWriter) {
+    for _i in 0..EVENT_NUM {
+        writer.write(&vec![0; EVENT_SIZE]).expect("write byte stream");
+    }
+
+    writer.flush().expect("flush byte stream");
+}
+
+// run no block sends request to server and does not wait for the reply
+fn run_byte_stream_no_block(writer: &mut ByteStreamWriter) {
+    for _i in 0..EVENT_NUM {
+        writer.write(&vec![0; EVENT_SIZE]).expect("write byte stream");
+    }
+}
+
 criterion_group! {
     name = performance;
     config = Criterion::default().sample_size(10);
-    targets = mock_server,mock_server_no_block,mock_connection,mock_connection_no_block
+    targets = byte_stream_mock_server, byte_stream_mock_connection
 }
 
 criterion_main!(performance);
