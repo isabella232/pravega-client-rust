@@ -39,7 +39,7 @@ jobs:
       - name: Set up Rust
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
+          toolchain: 1.48.0
           target: ${{ matrix.platform.rust-target }}
           override: true
           components: rustfmt, clippy
